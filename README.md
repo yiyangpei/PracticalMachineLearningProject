@@ -1,0 +1,1 @@
+This repo is the submission to Course Project of the Coursera Course Practical Machine Learning.
