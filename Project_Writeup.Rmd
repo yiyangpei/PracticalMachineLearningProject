@@ -1,0 +1,98 @@
+---
+title: "Practical Machine Learning Project"
+author: "Yiyang Pei"
+date: "Wednesday, May 13, 2015"
+output: html_document
+---
+
+### Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+In this project, our goal will be to use data from the four sensors on the belt, forearm, arm, and dumbell of 6 participants, who were asked to perform barbell lifts correctly and incorrectly in 5 different ways. We will predict the manner in which they did the exercise. 
+
+
+### Data 
+
+
+The training data for this project are available [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv). The test data are available [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv). The data for this project come from this [source](http://groupware.les.inf.puc-rio.br/har. ). 
+
+
+
+### Model Building
+
+#### Load the data
+
+Assuming the training and the testing data set are downloaded into the working directory, We first load the training and testing data. 
+```{r}
+train <- read.csv("pml-training.csv")
+test  <- read.csv("pml-testing.csv")
+```
+
+#### Create the training and the validation set
+In order to assess how our model will be generalized to unforeseen dataset before we submit it, we split the dataset `train` further into a training set and a validation set. 
+```{r,warning=FALSE,message=FALSE}
+library(caret)
+set.seed(123)
+inTrain = createDataPartition(train$classe, p = 3/4, list=FALSE)
+training = train[inTrain,]
+validation = train[-inTrain,]
+
+```
+
+#### Select features
+
+We first examine the training dataset. 
+```{r}
+summary(training)
+```
+Notice that columns 5-159 refer to the measurement variables. According to [[1]](http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf), there are 96 variables that correspond to the statistics (mean, variance,
+standard deviation, max, min, amplitude, kurtosis and skewness,) of the raw measurements.  As can be seen from above, these variables contain a significant number (14405 out of `r nrow(training)`) of NAs or blanks. We will remove these variables and select the rest of the measurement variables when building our model. 
+
+```{r}
+varNames <- subset(names(training[,8:159]),!grepl("avg|var|stddev|max|min|amplitude|kurtosis|skewness", names(training[,8:159])))
+varNames
+```
+
+Next, the variable `total_accel_` is related to `accel_xxx_x`, `accel_xxx_y`, and `accel_xxx_z`. We will further remove the variables whose names start with `total_accel_`. 
+
+```{r}
+varNames <- subset(varNames, !grepl("total_accel", varNames))
+
+```
+
+#### Train the model
+We will use random forest to train our model. 
+```{r, cache=TRUE, warning=FALSE,message=FALSE}
+Ctrl <- trainControl(method="cv", number = 10)
+set.seed(123)
+fit <-train(training$classe, x=training[, varNames], method = "rf", trControl=Ctrl)
+fit
+```
+
+#### Assess the in-sample error
+```{r, warning=FALSE,message=FALSE}
+predTrain = predict(fit)
+confusionMatrix(predTrain, training$classe)
+```
+
+
+#### Cross Validation
+Then we assess the accuracy of our model on the validation set. We expect the accuracy to be lower on the validation set than the training set. 
+```{r }
+predValidation = predict(fit, newdata=validation[,varNames])
+confusionMatrix(predValidation, validation$classe)
+```
+
+
+
+#### Predict against the test set
+```{r}
+predTest = predict(fit, newdata=test[,varNames])
+cbind(problem_id=test$problem_id, predTest)
+```
+
+
+
+#### Reference
+[1] Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
